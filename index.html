@@ -289,7 +289,7 @@ function mkPoint(x, y, lum, A, halo){
     ph1: Math.random()*6.283, ph2: Math.random()*6.283, ph3: Math.random()*6.283,
     f1: 0.3+Math.random()*1.0, f2: 0.3+Math.random()*0.9, f3: 0.35+Math.random()*1.15,
     amp: 0.3+Math.random()*0.5,
-    ox:0, oy:0, heat:0,
+    ox:0, oy:0, heat:0, dr: Math.random(),
     i0x: Math.random(), i0y: Math.random(), d0: Math.random()*0.9,
     sw: 0.6+Math.random()*0.8,          // fator individual do redemoinho
     w
@@ -531,8 +531,8 @@ function frame(ms){
       sx += (-dym/len)*arc; sy += (dxm/len)*arc;
     }
 
-    /* ondulação orgânica */
-    const ampl = p.amp * (1 + sway*0.55);
+    /* ondulação orgânica — cresce com a bebida */
+    const ampl = p.amp * (1 + sway*0.55 + heatWarm*0.85);
     const wx = Math.sin(t*p.f1+p.ph1)*ampl + Math.sin(t*p.f2*1.7+p.ph2)*ampl*0.6;
     const wy = Math.cos(t*p.f2+p.ph3)*ampl + Math.sin(t*p.f3+p.ph1)*ampl*0.5;
 
@@ -570,6 +570,16 @@ function frame(ms){
 
     /* intro do caos + dispersão */
     let px = sx + wx + ex + p.ox, py = sy + wy + ey + p.oy;
+
+    /* dispersão etílica: a matéria dela perde coesão com os copos —
+       cada ponto flutua devagar para longe do lugar, mas os OLHOS
+       resistem: o olhar segura firme enquanto o resto se desmancha */
+    if (heatWarm > 0.01){
+      const focus = 1 - Math.min(1, w.ir*1.4 + w.eye*0.9);
+      const mag = heatWarm * (2.5 + 7*p.dr) * focus * exprK;
+      px += Math.cos(p.ph3*9 + t*(0.12 + p.f3*0.11)) * mag;
+      py += Math.sin(p.ph2*9 + t*(0.10 + p.f1*0.09)) * mag;
+    }
     const ik = clamp((intro - p.d0*0.55)/0.45, 0, 1);
     const ie = 1 - Math.pow(1-ik, 5);
     const conv = ie*(1 - scatter);
