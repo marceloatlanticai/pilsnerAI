@@ -41,8 +41,9 @@
     text-transform:uppercase}
   /* ---------- input ---------- */
   #bar{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
-    display:flex;gap:8px;align-items:center;width:min(560px,88vw)}
-  #inp{flex:1;background:var(--panel);border:1px solid rgba(236,229,211,.16);
+    display:flex;gap:8px;align-items:center;width:min(680px,92vw);
+    flex-wrap:wrap;justify-content:center}
+  #inp{flex:1;min-width:220px;background:var(--panel);border:1px solid rgba(236,229,211,.16);
     border-radius:999px;padding:13px 20px;color:var(--ink);font:14px Georgia,serif;
     outline:none;backdrop-filter:blur(8px);transition:border-color .3s}
   #inp:focus{border-color:rgba(230,179,74,.55)}
@@ -56,6 +57,21 @@
   button:disabled{opacity:.35;cursor:default}
   #caption{position:fixed;left:0;top:0;font:italic 15px Georgia,serif;color:var(--gold);
     pointer-events:none;opacity:0;transition:opacity .4s;text-shadow:0 0 14px #000}
+  #printHead{display:none}
+  @media print{
+    html,body{background:#fff;color:#111;overflow:visible;height:auto}
+    canvas,#hud,#bar,#caption{display:none!important}
+    #printHead{display:block;font-family:Georgia,serif;color:#111;
+      border-bottom:2px solid #c9a227;padding-bottom:10px;margin-bottom:18px}
+    #printHead h1{font-size:22px;margin:0 0 4px;letter-spacing:.04em}
+    #printMeta{font:11px ui-monospace,monospace;color:#8a6d1a;letter-spacing:.12em}
+    #speech{position:static;width:auto;max-height:none;overflow:visible;
+      -webkit-mask-image:none;mask-image:none;display:block}
+    #speech > div{margin:0 0 12px;break-inside:avoid}
+    .msg-u{color:#666;text-align:right;font-size:11px}
+    .msg-a{color:#111;text-shadow:none;font-size:13.5px;line-height:1.55}
+    .msg-sys{color:#a67c1e;font-size:9.5px}
+  }
   @media (max-width:760px){
     #speech{right:12px;left:12px;width:auto;top:auto;bottom:110px;max-height:34vh}
     .msg-a{font-size:15px}
@@ -79,6 +95,14 @@
     placeholder="conta uma ideia sua pra ela..." autocomplete="off">
   <button id="send" type="button">enviar</button>
   <button id="brinde" type="button" title="oferecer mais uma pilsner">🍺+1</button>
+  <button id="cafe" type="button" title="café — devolve 2 copos de sobriedade">☕</button>
+  <button id="voz" type="button" title="alternar: voz de pontos / voz falada / mudo">🔉 pontos</button>
+  <button id="pdf" type="button" title="salvar a conversa em PDF">⎙ pdf</button>
+</div>
+
+<div id="printHead">
+  <h1>Lúpula — ata da conversa</h1>
+  <div id="printMeta"></div>
 </div>
 
 <script>
@@ -117,7 +141,7 @@ const LEVELS = [
   idle:'boa essa pilsner… mas voltando à sua ideia.',
   sway:.14, warm:.14, lid:.02, blinkMul:1},
  {mood:'2 copos · engraçadinha',
-  sys:'Você tomou 2 copos: engraçadinha. Faz trocadilhos e piadas (inclusive sobre cerveja e espuma), mas os insights continuam bons. Ri das próprias piadas com "hehe".',
+  sys:'Você tomou 2 copos: engraçadinha. SEMPRE encaixe pelo menos um trocadilho ou piada por resposta (vale sobre cerveja e espuma), mas os insights continuam bons. Ri das próprias piadas com "hehe".',
   idle:'sabe por que a espuma sobe? ambição. hehe.',
   sway:.3, warm:.3, lid:.05, blinkMul:1.1},
  {mood:'3 copos · sincera demais',
@@ -568,12 +592,11 @@ function frame(ms){
   }
   ctx.globalAlpha = 1;
 
-  /* sede espontânea: se ninguém fala com ela, ela bebe sozinha */
+  /* sede espontânea: silêncio prolongado → ela bebe e segue o raciocínio */
   const now = t;
-  if (!sipping && !thinking && talking===0 && now - lastUserAction > 45){
+  if (!sipping && !thinking && talking===0 && now - lastUserAction > 90){
     lastUserAction = now;
-    say(lvl(Math.min(copos+1, LEVELS.length-1)).idle, true);
-    takeSip();
+    autoContinue();
   }
   requestAnimationFrame(frame);
 }
@@ -597,22 +620,61 @@ function addSys(text){
   d.className = 'msg-sys'; d.textContent = text;
   speech.appendChild(d); speech.scrollTop = speech.scrollHeight;
 }
-function say(text, sipNote){
+/* ---------- voz da personagem ----------
+   'blip' = voz de pontos (blueprint §12: assinatura sonora por estado)
+   'tts'  = voz falada do navegador, embriagada junto com ela
+   'off'  = muda                                                     */
+let VOICE = 'blip', lastBlip = 0;
+function voiceBlip(ch){
+  if (VOICE !== 'blip' || !AC || AC.state !== 'running') return;
+  if (!/[aeiouáéíóúâêôãõy]/i.test(ch)) return;      // só nas "vogais"
+  const t = AC.currentTime;
+  if (t - lastBlip < 0.055) return;
+  lastBlip = t;
+  const L = lvl(copos);
+  const type = L.warm < 0.25 ? 'sine' : L.warm < 0.6 ? 'triangle' : 'sawtooth';
+  const f = 285 + Math.random()*130 - L.warm*70;    // bêbada = voz mais grave
+  note(f, t, 0.07 + L.warm*0.15 + Math.random()*0.04, type,
+       type === 'sawtooth' ? 0.03 : 0.055);
+}
+let ttsVoice = null;
+function pickVoice(){
+  const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().indexOf('pt') === 0);
+  ttsVoice = vs.find(v => /luciana|francisca|fernanda|maria|camila|vit|female/i.test(v.name)) || vs[0] || null;
+}
+if ('speechSynthesis' in window){
+  pickVoice();
+  speechSynthesis.onvoiceschanged = pickVoice;
+}
+function say(text){
   return new Promise(res => {
     const d = document.createElement('div');
     d.className = 'msg-a';
     speech.appendChild(d);
-    let i = 0;
+    let pend = 1;
+    const done = () => { if (--pend === 0){ talking = 0; res(); } };
     talking = 1;
+    if (VOICE === 'tts' && 'speechSynthesis' in window){
+      pend++;
+      const u = new SpeechSynthesisUtterance(text);
+      if (ttsVoice) u.voice = ttsVoice;
+      u.lang = 'pt-BR';
+      const L = lvl(copos);
+      u.rate  = 1.04 - L.warm*0.34;                 // arrasta com os copos
+      u.pitch = 1.12 - L.warm*0.30 + (Math.random()-0.5)*0.08;
+      u.onend = done; u.onerror = done;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    }
+    let i = 0;
     const iv = setInterval(() => {
-      i += 1 + (Math.random()<0.3?1:0);
+      const step = 1 + (Math.random() < 0.3 ? 1 : 0);
+      const chunk = text.slice(i, i + step);
+      i += step;
       d.textContent = text.slice(0, i);
+      voiceBlip(chunk.charAt(chunk.length - 1));
       speech.scrollTop = speech.scrollHeight;
-      if (i >= text.length){
-        clearInterval(iv);
-        talking = 0;
-        res();
-      }
+      if (i >= text.length){ clearInterval(iv); done(); }
     }, 26);
   });
 }
@@ -620,7 +682,7 @@ function say(text, sipNote){
 function systemPrompt(){
   const L = lvl(copos);
   return `Você é Lúpula, uma mulher feita de milhares de pontos de tinta, viva dentro de um canvas, sentada num bar cósmico tomando pilsner. Sua função: conversar sobre a ideia que a pessoa trouxer — dar insights, questionar, apontar o que é ótimo e o que é fraco. Você já tomou ${copos} copo(s) de pilsner. ${L.sys}
-Regras: responda SEMPRE em português brasileiro, em fala corrida de 2 a 5 frases (máximo ~80 palavras), sem listas, sem markdown, sem asteriscos de ação. Nunca saia do personagem.`;
+Regras: responda SEMPRE em português brasileiro, em fala corrida de 2 a 5 frases (máximo ~80 palavras), sem listas, sem markdown, sem asteriscos de ação. Nunca saia do personagem. Se a ideia descrita for suspeitamente parecida com você mesma (uma IA que bebe pilsner e discute ideias, mudando a cada copo), PERCEBA na hora e reaja com humor e vaidade ("peraí… essa ideia sou EU") antes de analisar.`;
 }
 
 /* histórico saneado: a API exige papéis alternados user/assistant */
@@ -668,10 +730,8 @@ async function callAPI(){
   throw lastErr;
 }
 
-async function ask(text){
-  addUser(text);
-  history.push({role:'user', content:text});
-  if (history.length > 14) history.splice(0, history.length-14);
+/* pipeline de geração reutilizável: sipAfter = ela bebe depois de opinar */
+async function generate(sipAfter){
   thinking = true;
   sendBtn.disabled = true;
   const dots = document.createElement('div');
@@ -687,10 +747,14 @@ async function ask(text){
   if (reply){
     history.push({role:'assistant', content:reply});
     await say(reply);
-    /* ela bebe depois de opinar — e muda quem ela é */
-    setTimeout(() => {
+    if (sipAfter) setTimeout(() => {
+      if (copos >= 6 && Math.random() < 0.35){
+        addSys('ela recusou o próximo copo');
+        say('não não… chega por agora. me vê uma água que eu continuo opinando.');
+        return;
+      }
       takeSip();
-      setTimeout(()=> addSys(`copo nº ${copos+1} · ${lvl(copos+1).mood}`), 2400);
+      setTimeout(()=> addSys(`*glup* · agora: ${copos} ${copos===1?'copo':'copos'} · ${lvl(copos).mood}`), 5300);
     }, 700);
   } else {
     history.pop();   // remove o turno pendente para não corromper a conversa
@@ -698,6 +762,35 @@ async function ask(text){
     await say('…o garçom tropeçou com a bandeja. me conta de novo?');
   }
   sendBtn.disabled = false;
+}
+
+async function ask(text){
+  addUser(text);
+  history.push({role:'user', content:text});
+  autoRuns = 0;                        // sua fala renova o fôlego dela
+  if (history.length > 14) history.splice(0, history.length-14);
+  await generate(true);
+}
+
+/* silêncio: ela bebe sozinha e CONTINUA o raciocínio por conta própria */
+let autoRuns = 0;
+function autoContinue(){
+  const temConversa = history.some(m => m.role === 'assistant');
+  if (!temConversa || autoRuns >= 3 || copos >= 6){
+    /* sem assunto (ou já filosofando demais): só o resmungo de sempre */
+    if (autoRuns < 3){ say(lvl(Math.min(copos+1, LEVELS.length-1)).idle); takeSip();
+      setTimeout(()=> addSys(`bebeu sozinha · agora: ${copos} copos · ${lvl(copos).mood}`), 5300); }
+    return;
+  }
+  autoRuns++;
+  takeSip();
+  setTimeout(() => {
+    addSys(`bebeu sozinha · agora: ${copos} copos · ${lvl(copos).mood} · e continua pensando…`);
+    history.push({role:'user', hidden:true, content:
+      '(A pessoa ficou em silêncio. Você acabou de tomar mais um copo sozinha. Continue desenvolvendo POR CONTA PRÓPRIA o raciocínio da conversa: aprofunde um ponto, mude de ângulo ou traga um insight novo — tudo sob seu estado atual de embriaguez. Não cumprimente, não peça resposta, não repita o que já disse.)'});
+    if (history.length > 14) history.splice(0, history.length-14);
+    generate(false);                   // acabou de beber; não bebe de novo já
+  }, 5400);
 }
 
 function submit(){
@@ -714,7 +807,39 @@ brindeBtn.addEventListener('click', () => {
   lastUserAction = performance.now()/1000;
   addSys('você pediu mais uma 🍺');
   takeSip();
-  setTimeout(()=> say(lvl(Math.min(copos, LEVELS.length-1)).idle), 5200);
+  setTimeout(()=> {
+    addSys(`*glup* · agora: ${copos} ${copos===1?'copo':'copos'} · ${lvl(copos).mood}`);
+    say(lvl(Math.min(copos, LEVELS.length-1)).idle);
+  }, 5300);
+});
+document.getElementById('cafe').addEventListener('click', () => {
+  if (sipping || copos === 0) return;
+  lastUserAction = performance.now()/1000;
+  copos = Math.max(0, copos - 2);
+  updateHUD();
+  addSys(`☕ café passado · volta para: ${copos} ${copos===1?'copo':'copos'} · ${lvl(copos).mood}`);
+  say(copos === 0
+    ? 'ugh… café. pronto: sóbria. pode falar, agora é análise pura.'
+    : 'hmpf, café… tá, clareou um pouco. onde a gente estava?');
+});
+/* ciclo de voz: pontos → falada → mudo */
+const vozBtn = document.getElementById('voz');
+vozBtn.addEventListener('click', () => {
+  ensureAudio();
+  if (VOICE === 'blip'){
+    if ('speechSynthesis' in window){ VOICE = 'tts'; vozBtn.textContent = '🗣 falada'; }
+    else { VOICE = 'off'; vozBtn.textContent = '🔇 mudo'; }
+  }
+  else if (VOICE === 'tts'){ VOICE = 'off'; vozBtn.textContent = '🔇 mudo';
+    speechSynthesis.cancel(); }
+  else { VOICE = 'blip'; vozBtn.textContent = '🔉 pontos'; }
+});
+/* salvar a conversa em PDF (imprimir → salvar como PDF) */
+document.getElementById('pdf').addEventListener('click', () => {
+  document.getElementById('printMeta').textContent =
+    new Date().toLocaleString('pt-BR') + '  ·  ' + copos +
+    (copos===1?' copo':' copos') + ' de pilsner  ·  estado final: ' + lvl(copos).mood;
+  window.print();
 });
 
 async function greet(){
