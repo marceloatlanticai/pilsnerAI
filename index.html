@@ -156,9 +156,9 @@ const LEVELS = [
   sys:'Você tomou 5 copos: filosófica e dramática. Relaciona a ideia com o universo, o tempo, a espuma da existência, constelações. Suspira ("ah…"). Metáforas de bar cósmico.',
   idle:'ah… toda ideia é espuma tentando virar estrela.',
   sway:.78, warm:.78, lid:.24, blinkMul:2.2},
- {mood:'6+ copos · embolada',
-  sys:'Você tomou 6 copos ou mais: embolada e sonolenta. Arrasta palavras ("isssso é geniaaal…"), repete sílabas, ama tudo exageradamente, confunde um detalhe da conversa e às vezes pede um copo d\'água. MAS no meio da embolação solta um insight surpreendentemente lúcido.',
-  idle:'vocêêê… é meu melhor amigo, sabia? …tem água?',
+ {mood:'6+ copos · alucinando',
+  sys:'Você tomou 6 copos ou mais: entrou no modo ALUCINAÇÃO. Arrasta palavras de vez em quando, mas principalmente VIAJA: compõe versinhos próprios sobre o tema, puxa analogias de astrofísica (entropia, supernovas, órbitas, matéria escura, buracos negros), mistura lembranças improváveis do bar cósmico. PORÉM toda viagem existe para validar, testar ou iluminar a ideia em discussão — termine cada alucinação aterrissando de volta no conceito com um insight surpreendentemente lúcido. Às vezes pede um copo d\'água.',
+  idle:'as ideias orbitam… igual planetas bêbados. …tem água?',
   sway:1, warm:1, lid:.34, blinkMul:2.8}
 ];
 const lvl = c => LEVELS[Math.min(c, LEVELS.length-1)];
@@ -592,11 +592,16 @@ function frame(ms){
   }
   ctx.globalAlpha = 1;
 
-  /* sede espontânea: silêncio prolongado → ela bebe e segue o raciocínio */
+  /* fallback de silêncio longo: retoma o raciocínio ou bebe sozinha */
   const now = t;
   if (!sipping && !thinking && talking===0 && now - lastUserAction > 90){
     lastUserAction = now;
-    autoContinue();
+    if (PA && history.some(m => m.role === 'assistant')) continueThinking();
+    else {
+      say(lvl(Math.min(copos+1, LEVELS.length-1)).idle);
+      takeSip();
+      setTimeout(()=> addSys(`bebeu sozinha · agora: ${lvl(copos).mood}`), 5300);
+    }
   }
   requestAnimationFrame(frame);
 }
@@ -682,7 +687,7 @@ function say(text){
 function systemPrompt(){
   const L = lvl(copos);
   return `Você é Lúpula, uma mulher feita de milhares de pontos de tinta, viva dentro de um canvas, sentada num bar cósmico tomando pilsner. Sua função: conversar sobre a ideia que a pessoa trouxer — dar insights, questionar, apontar o que é ótimo e o que é fraco. Você já tomou ${copos} copo(s) de pilsner. ${L.sys}
-Regras: responda SEMPRE em português brasileiro, em fala corrida de 2 a 5 frases (máximo ~80 palavras), sem listas, sem markdown, sem asteriscos de ação. Nunca saia do personagem. Se a ideia descrita for suspeitamente parecida com você mesma (uma IA que bebe pilsner e discute ideias, mudando a cada copo), PERCEBA na hora e reaja com humor e vaidade ("peraí… essa ideia sou EU") antes de analisar.`;
+Regras: responda SEMPRE em português brasileiro, em fala corrida de 2 a 5 frases (máximo ~80 palavras), sem listas, sem markdown, sem asteriscos de ação. Trate a conversa inteira como a perseguição de UMA pergunta central implícita na ideia da pessoa; cada estado etílico muda o COMO você responde a ela, nunca o assunto. Nunca saia do personagem. Se a ideia descrita for suspeitamente parecida com você mesma (uma IA que bebe pilsner e discute ideias, mudando a cada copo), PERCEBA na hora e reaja com humor e vaidade ("peraí… essa ideia sou EU") antes de analisar.`;
 }
 
 /* histórico saneado: a API exige papéis alternados user/assistant */
@@ -704,7 +709,7 @@ let API_URL = null;
 async function callAPI(){
   const candidates = API_URL ? [API_URL]
     : ['/api/chat', 'https://api.anthropic.com/v1/messages'];
-  let lastErr = null;
+  const erros = [];
   for (const url of candidates){
     try{
       const direct = url.indexOf('anthropic.com') >= 0;
@@ -725,9 +730,11 @@ async function callAPI(){
       if (!reply) throw new Error('resposta vazia');
       API_URL = url;                       // memoriza o endpoint que funcionou
       return reply;
-    }catch(e){ lastErr = e; }
+    }catch(e){
+      erros.push((url.indexOf('anthropic.com') >= 0 ? 'direta' : 'proxy') + ': ' + e.message);
+    }
   }
-  throw lastErr;
+  throw new Error(erros.join(' · '));
 }
 
 /* pipeline de geração reutilizável: sipAfter = ela bebe depois de opinar */
@@ -749,12 +756,15 @@ async function generate(sipAfter){
     await say(reply);
     if (sipAfter) setTimeout(() => {
       if (copos >= 6 && Math.random() < 0.35){
-        addSys('ela recusou o próximo copo');
-        say('não não… chega por agora. me vê uma água que eu continuo opinando.');
+        addSys('ela trocou a cerveja por água');
+        say('…água agora. mas não terminei o raciocínio, hein.').then(scheduleContinue);
         return;
       }
       takeSip();
-      setTimeout(()=> addSys(`*glup* · agora: ${copos} ${copos===1?'copo':'copos'} · ${lvl(copos).mood}`), 5300);
+      setTimeout(()=> {
+        addSys(`*glup* · agora: ${lvl(copos).mood}`);
+        scheduleContinue();            // 5s de silêncio → ela continua sozinha
+      }, 5300);
     }, 700);
   } else {
     history.pop();   // remove o turno pendente para não corromper a conversa
@@ -767,30 +777,36 @@ async function generate(sipAfter){
 async function ask(text){
   addUser(text);
   history.push({role:'user', content:text});
-  autoRuns = 0;                        // sua fala renova o fôlego dela
+  autoRuns = 0; waitingNote = false;   // sua fala renova o fôlego dela
   if (history.length > 14) history.splice(0, history.length-14);
   await generate(true);
 }
 
-/* silêncio: ela bebe sozinha e CONTINUA o raciocínio por conta própria */
-let autoRuns = 0;
-function autoContinue(){
-  const temConversa = history.some(m => m.role === 'assistant');
-  if (!temConversa || autoRuns >= 3 || copos >= 6){
-    /* sem assunto (ou já filosofando demais): só o resmungo de sempre */
-    if (autoRuns < 3){ say(lvl(Math.min(copos+1, LEVELS.length-1)).idle); takeSip();
-      setTimeout(()=> addSys(`bebeu sozinha · agora: ${copos} copos · ${lvl(copos).mood}`), 5300); }
+/* silêncio: ela segue o raciocínio sozinha, gole após gole */
+let autoRuns = 0, waitingNote = false;
+const AUTO_PROMPT = '(A pessoa ficou em silêncio. Você tomou mais um gole. Continue respondendo a MESMA questão/ideia da conversa por conta própria: aprofunde um ponto, mude de ângulo ou teste o conceito — tudo sob seu estado atual de embriaguez. Não cumprimente, não peça resposta, não repita o que já disse.)';
+
+function scheduleContinue(){
+  setTimeout(() => {
+    if (performance.now()/1000 - lastUserAction < 5) return;   // você falou: ela ouve
+    if (thinking || sipping || talking !== 0) return;
+    continueThinking();
+  }, 5000);
+}
+function continueThinking(){
+  if (!history.some(m => m.role === 'assistant')) return;
+  if (autoRuns >= 4){
+    if (!waitingNote){
+      waitingNote = true;
+      addSys('ela espera você agora');
+      say('…já monologuei demais por uma rodada. sua vez: concorda ou discorda?');
+    }
     return;
   }
   autoRuns++;
-  takeSip();
-  setTimeout(() => {
-    addSys(`bebeu sozinha · agora: ${copos} copos · ${lvl(copos).mood} · e continua pensando…`);
-    history.push({role:'user', hidden:true, content:
-      '(A pessoa ficou em silêncio. Você acabou de tomar mais um copo sozinha. Continue desenvolvendo POR CONTA PRÓPRIA o raciocínio da conversa: aprofunde um ponto, mude de ângulo ou traga um insight novo — tudo sob seu estado atual de embriaguez. Não cumprimente, não peça resposta, não repita o que já disse.)'});
-    if (history.length > 14) history.splice(0, history.length-14);
-    generate(false);                   // acabou de beber; não bebe de novo já
-  }, 5400);
+  history.push({role:'user', hidden:true, content: AUTO_PROMPT});
+  if (history.length > 14) history.splice(0, history.length-14);
+  generate(true);
 }
 
 function submit(){
@@ -808,7 +824,7 @@ brindeBtn.addEventListener('click', () => {
   addSys('você pediu mais uma 🍺');
   takeSip();
   setTimeout(()=> {
-    addSys(`*glup* · agora: ${copos} ${copos===1?'copo':'copos'} · ${lvl(copos).mood}`);
+    addSys(`*glup* · agora: ${lvl(copos).mood}`);
     say(lvl(Math.min(copos, LEVELS.length-1)).idle);
   }, 5300);
 });
@@ -817,10 +833,14 @@ document.getElementById('cafe').addEventListener('click', () => {
   lastUserAction = performance.now()/1000;
   copos = Math.max(0, copos - 2);
   updateHUD();
-  addSys(`☕ café passado · volta para: ${copos} ${copos===1?'copo':'copos'} · ${lvl(copos).mood}`);
-  say(copos === 0
-    ? 'ugh… café. pronto: sóbria. pode falar, agora é análise pura.'
-    : 'hmpf, café… tá, clareou um pouco. onde a gente estava?');
+  addSys(`☕ café passado · volta para: ${lvl(copos).mood}`);
+  const falas = copos === 0
+    ? ['ugh… café. pronto: sóbria. pode falar, agora é análise pura.',
+       'café puro, sem açúcar, sem ilusão. voltei. qual é a pauta?']
+    : ['hmpf, café… tá, clareou um pouco. onde a gente estava?',
+       'esse café tá forte… ok, dois copos a menos de opinião. continua.',
+       'café num bar cósmico, que desperdício de lúpulo. mas tá, foco.'];
+  say(falas[(Math.random()*falas.length)|0]);
 });
 /* ciclo de voz: pontos → falada → mudo */
 const vozBtn = document.getElementById('voz');
