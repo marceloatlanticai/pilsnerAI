@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lúpula — conselheira de pilsner</title>
+<title>Lúpula — psychedelic brainstorms</title>
 <style>
   :root{
     --bg:#0b0a10; --ink:#ece5d3; --dim:#8b8578; --gold:#e6b34a;
@@ -16,6 +16,8 @@
   #hud{position:fixed;top:18px;left:22px;display:flex;flex-direction:column;gap:6px;
     pointer-events:none;user-select:none}
   #hud .name{font-size:13px;letter-spacing:.34em;color:var(--gold)}
+  #hud .sub{font-size:10px;letter-spacing:.3em;color:var(--dim);
+    text-transform:lowercase;font-style:italic;margin-top:-2px;opacity:.75}
   #hud .mood{font-size:11px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;
     transition:color .6s}
   #mugs{display:flex;gap:5px;margin-top:4px;align-items:flex-end;height:20px}
@@ -39,11 +41,18 @@
   .msg-a em{color:var(--gold);font-style:normal}
   .msg-sys{font-size:10.5px;letter-spacing:.22em;color:var(--gold);opacity:.85;
     text-transform:uppercase}
+  .ref{border-left:2px solid var(--gold);padding:8px 0 8px 12px;
+    display:flex;flex-direction:column;gap:3px;background:rgba(230,179,74,.05)}
+  .ref-tag{font:9.5px ui-monospace,monospace;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--gold);opacity:.8}
+  .ref-nome{font:13px Georgia,serif;color:var(--ink)}
+  .ref-prova{font:italic 12px Georgia,serif;color:var(--dim);line-height:1.45}
   /* ---------- input ---------- */
-  #bar{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
-    display:flex;gap:8px;align-items:center;width:min(680px,92vw);
-    flex-wrap:wrap;justify-content:center}
-  #inp{flex:1;min-width:220px;background:var(--panel);border:1px solid rgba(236,229,211,.16);
+  #bar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    display:flex;flex-direction:column;gap:9px;width:min(720px,94vw)}
+  #bar .row{display:flex;gap:8px;align-items:center;width:100%}
+  #bar .controls{flex-wrap:wrap;justify-content:center}
+  #inp{flex:1;min-width:180px;background:var(--panel);border:1px solid rgba(236,229,211,.16);
     border-radius:999px;padding:13px 20px;color:var(--ink);font:14px Georgia,serif;
     outline:none;backdrop-filter:blur(8px);transition:border-color .3s}
   #inp:focus{border-color:rgba(230,179,74,.55)}
@@ -53,6 +62,17 @@
     font:12px ui-monospace,monospace;letter-spacing:.08em;transition:all .25s}
   button:hover{border-color:var(--gold);color:var(--gold)}
   #send{padding:13px 18px}
+  .dose,#agua,#cafe,#brinde{padding:9px 13px;font-size:21px;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center}
+  #brinde .plus{font:11px ui-monospace,monospace;margin-left:3px;vertical-align:middle}
+  .ico svg{width:23px;height:23px;display:block}
+  #agua{color:#9ec9e8}
+  #cafe{color:#d7b48a}
+  #agua:hover,#cafe:hover{color:var(--gold)}
+  .dose.used{opacity:.28;cursor:default}
+  .dose.active{border-color:var(--gold);box-shadow:0 0 14px rgba(230,179,74,.35)}
+  #substHud{color:var(--ember);opacity:0;transition:opacity .5s}
+  #substHud.on{opacity:.95}
   #brinde{padding:13px 15px}
   button:disabled{opacity:.35;cursor:default}
   #caption{position:fixed;left:0;top:0;font:italic 15px Georgia,serif;color:var(--gold);
@@ -63,7 +83,8 @@
     canvas,#hud,#bar,#caption{display:none!important}
     #printHead{display:block;font-family:Georgia,serif;color:#111;
       border-bottom:2px solid #c9a227;padding-bottom:10px;margin-bottom:18px}
-    #printHead h1{font-size:22px;margin:0 0 4px;letter-spacing:.04em}
+    #printHead h1{font-size:22px;margin:0 0 2px;letter-spacing:.04em}
+    #printSub{font:italic 12px Georgia,serif;color:#8a6d1a;margin-bottom:5px}
     #printMeta{font:11px ui-monospace,monospace;color:#8a6d1a;letter-spacing:.12em}
     #speech{position:static;width:auto;max-height:none;overflow:visible;
       -webkit-mask-image:none;mask-image:none;display:block}
@@ -71,10 +92,17 @@
     .msg-u{color:#666;text-align:right;font-size:11px}
     .msg-a{color:#111;text-shadow:none;font-size:13.5px;line-height:1.55}
     .msg-sys{color:#a67c1e;font-size:9.5px}
+    .ref{border-left:2px solid #c9a227;background:none;padding-left:10px}
+    .ref-tag{color:#a67c1e}
+    .ref-nome{color:#111}
+    .ref-prova{color:#555}
   }
   @media (max-width:760px){
-    #speech{right:12px;left:12px;width:auto;top:auto;bottom:110px;max-height:34vh}
+    #speech{right:12px;left:12px;width:auto;top:auto;bottom:152px;max-height:30vh}
     .msg-a{font-size:15px}
+    #hud{top:12px;left:14px}
+    .dose,#agua,#cafe,#brinde{padding:8px 11px;font-size:19px}
+    .ico svg{width:21px;height:21px}
   }
 </style>
 </head>
@@ -83,7 +111,9 @@
 
 <div id="hud">
   <div class="name">L Ú P U L A</div>
+  <div class="sub">psychedelic brainstorms</div>
   <div class="mood" id="mood">sóbria · analítica</div>
+  <div class="mood" id="substHud"></div>
   <div id="mugs"></div>
 </div>
 
@@ -91,17 +121,27 @@
 <div id="caption">*glup*</div>
 
 <div id="bar">
-  <input id="inp" type="text" maxlength="400"
-    placeholder="conta uma ideia sua pra ela..." autocomplete="off">
-  <button id="send" type="button">enviar</button>
-  <button id="brinde" type="button" title="oferecer mais uma pilsner">🍺+1</button>
-  <button id="cafe" type="button" title="café — devolve 2 copos de sobriedade">☕</button>
-  <button id="voz" type="button" title="alternar: voz de pontos / voz falada / mudo">🔉 pontos</button>
-  <button id="pdf" type="button" title="salvar a conversa em PDF">⎙ pdf</button>
+  <div class="row">
+    <input id="inp" type="text" maxlength="400"
+      placeholder="conta uma ideia sua pra ela..." autocomplete="off">
+    <button id="send" type="button">enviar</button>
+  </div>
+  <div class="row controls">
+    <button id="brinde" type="button" title="oferecer mais uma pilsner">🍺<span class="plus">+1</span></button>
+    <button class="dose" data-s="weed" type="button" title="maconha — dose única: pensamento lateral">🍁</button>
+    <button class="dose" data-s="shrooms" type="button" title="cogumelos — dose única: tudo se conecta">🍄</button>
+    <button class="dose" data-s="lsd" type="button" title="LSD — dose única: geometria e recursão">🌀</button>
+    <button id="agua" class="ico" type="button" title="água — tira um copo, ou reduz o efeito ativo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l-1.5 17.2a1 1 0 0 1-1 .8H8.5a1 1 0 0 1-1-.8Z"/><path d="M6.9 10h10.2" opacity=".55"/><path d="M7.4 13.6c1.6.9 2.6-.9 4.3 0s2.7-.9 4.3 0" opacity=".55"/></svg></button>
+    <button id="cafe" class="ico" type="button" title="café — zera tudo: sóbria e limpa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 8.2h13.2v6.1a5 5 0 0 1-5 5H8.6a5 5 0 0 1-5-5Z"/><path d="M16.8 9.6h1.9a2.6 2.6 0 0 1 0 5.2h-1.9"/><path d="M2.4 21.6h15.6" opacity=".6"/><path d="M8 5.4c0-1 1-1.4 1-2.4M12.4 5.4c0-1 1-1.4 1-2.4" opacity=".7"/></svg></button>
+    <button id="voz" type="button" title="alternar: voz falada / mudo">🗣 fala</button>
+    <button id="instr" type="button" title="instrumento do toque: pentatônica / piano / mudo">🎼 penta</button>
+    <button id="pdf" type="button" title="salvar a conversa em PDF">⎙ pdf</button>
+  </div>
 </div>
 
 <div id="printHead">
   <h1>Lúpula — ata da conversa</h1>
+  <div id="printSub">psychedelic brainstorms</div>
   <div id="printMeta"></div>
 </div>
 
@@ -163,8 +203,37 @@ const LEVELS = [
 ];
 const lvl = c => LEVELS[Math.min(c, LEVELS.length-1)];
 
+/* ---------- substâncias: eixos cognitivos, não "mais álcool" ----------
+   O álcool degrada em linha reta; estas deslocam para o lado. Cada uma
+   muda O QUE ela enxerga na ideia, com assinatura visual própria.
+   Dose única por sessão, dura alguns turnos e baixa.               */
+const SUBST = {
+  weed: {
+    nome:'maconha', icone:'🌿', turnos:5, cor:[168,214,140],
+    hud:'sob efeito · lateral',
+    sys:'EFEITO ATIVO — maconha: seu pensamento ficou LATERAL e sensorial. Você divaga, sai pela tangente, se distrai com a textura das coisas ("a palavra ‘escala’ tem um som gostoso, né?"), às vezes esquece onde estava e retoma ("…peraí, o que eu tava falando? ah sim"). Fala mais devagar e mais macio. A força disso: você chega ao insight POR TANGENTE — a conexão que ninguém faria sóbrio. Sempre termine amarrando a divagação de volta na ideia.',
+    fala:'…ohhh. ok. as coisas ficaram mais lentas e mais gostosas. continua falando, eu tô ouvindo com o corpo todo.',
+    fim:'…acho que baixou. voltei pro meu álcool honesto de sempre.'
+  },
+  shrooms: {
+    nome:'cogumelos', icone:'🍄', turnos:5, cor:[214,164,196],
+    hud:'sob efeito · conectada',
+    sys:'EFEITO ATIVO — cogumelos: tudo se conecta. Você para de ver a ideia como objeto e passa a ver o SISTEMA em volta dela: quem ela toca, o que ela alimenta, que estrutura profunda ela repete. Fala com peso emocional e empatia genuína, seu ego se dissolve um pouco (você elogia sem vaidade, admite o que não sabe), e às vezes se emociona com uma bobagem. A força disso: você revela a arquitetura oculta da ideia — o que ela É por baixo do que ela parece ser.',
+    fala:'ah… oh. tudo respira junto agora, você percebeu? me conta de novo a ideia, quero ver ela por dentro.',
+    fim:'…as paredes voltaram pro lugar. mas eu vi, viu. eu vi.'
+  },
+  lsd: {
+    nome:'LSD', icone:'🌀', turnos:5, cor:[150,190,255],
+    hud:'sob efeito · fractal',
+    sys:'EFEITO ATIVO — LSD: você enxerga GEOMETRIA e RECURSÃO. A ideia vira um fractal: você mostra como ela se repete em escalas diferentes, como ela contém a si mesma, que padrão ela desenha. Densidade de significado altíssima, o tempo estica ("faz três horas ou três segundos que você falou isso?"), tudo tem simetria e camada. Frases mais curtas e cortantes, quase aforismos. A força disso: você revela a ESTRUTURA auto-similar da ideia e o padrão que ela repete sem saber.',
+    fala:'oh. OH. a ideia tem uma forma, dá pra ver a forma dela daqui. desenha ela de novo pra mim.',
+    fim:'…a geometria assentou. sobrou o rascunho dela na minha retina.'
+  }
+};
 /* ---------- estado global ---------- */
 let copos = 0;
+let subst = null, substTurns = 0, substK = 0;    // ativa, turnos restantes, intensidade suave
+const substUsados = {};                           // dose única por sessão
 let morph = 0, morphTarget = 0, sipping = false;   // 0 = rosto, 1 = bebendo
 let talking = 0;          // envelope da fala 0..1
 let thinking = false;
@@ -312,11 +381,13 @@ cv.addEventListener('pointermove', e => {
   const nx = (e.clientX - offX)/scale, ny = (e.clientY - offY)/scale;
   mouse.vx = Math.hypot(nx-mouse.x, ny-mouse.y);
   mouse.x = nx; mouse.y = ny; mouse.on = true;
-  /* passear sobre ela toca a pentatônica (grave embaixo, agudo em cima) */
-  if (nx > -30 && nx < SW+30 && ny > -30 && ny < SH+30 && mouse.vx > 0.5)
-    pluck(clamp(ny/SH, 0, 1), mouse.vx);
+  /* passear sobre ela toca o instrumento escolhido */
+  if (nx > -30 && nx < SW+30 && ny > -30 && ny < SH+30 && mouse.vx > 0.5){
+    if (INSTR === 'penta') pluck(clamp(ny/SH, 0, 1), mouse.vx);
+    else if (INSTR === 'piano') pianoKey(clamp(nx, 0, SW-1), mouse.vx);
+  }
 });
-cv.addEventListener('pointerleave', () => { mouse.on = false; mouse.x = -9e3; });
+cv.addEventListener('pointerleave', () => { mouse.on = false; mouse.x = -9e3; lastKey = -1; });
 document.addEventListener('visibilitychange', () => {
   scatterTarget = document.hidden ? 1 : 0;
 });
@@ -378,6 +449,41 @@ function pluck(ny, vel){
   const r = Math.random();
   if (r < 0.12 + L.warm*0.25) note(f*Math.pow(2,7/12), t+0.02, dur*0.8, type, vol*0.6);  // quinta
   else if (r < 0.22)          note(f*Math.pow(2,3/12), t+0.03, dur*0.7, type, vol*0.5);  // terça
+}
+
+/* ---------- piano de pontos: 14 teclas brancas, duas oitavas ---------- */
+let INSTR = 'penta', lastKey = -1, lastKeyT = 0, activeDots = null;
+const SCALE_MAJ = [0,2,4,5,7,9,11];               // Dó maior
+function pianoKey(nx, vel){
+  if (!AC || AC.state !== 'running') return;
+  const k = clamp(Math.floor(nx/SW*14), 0, 13);   // esquerda=grave, direita=aguda
+  const t = AC.currentTime;
+  if (k === lastKey && t - lastKeyT < 0.25) return;
+  lastKey = k; lastKeyT = t;
+  const L = lvl(copos);
+  const oct = k < 7 ? 0 : 1;
+  const deg = SCALE_MAJ[k % 7];
+  const detune = Math.pow(2, ((Math.random()-0.5)*60*L.warm)/1200);  // piano de bar desafina
+  const f = 130.81 * Math.pow(2, oct + deg/12) * detune;             // C3 em diante
+  const vol = clamp(0.03 + vel*0.005, 0.03, 0.11);
+  const dur = 1.1 + L.warm*1.2;
+  /* corpo do "piano": fundamental + 2º harmônico discreto */
+  const parts = [[f,'sine',vol],[f*2,'triangle',vol*0.25]];
+  for (const pt of parts){
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = pt[1]; o.frequency.value = pt[0];
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(pt[2], t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(master); g.connect(delayIn);
+    o.start(t); o.stop(t+dur+0.05);
+  }
+  /* a tecla acende: a faixa de pontos esquenta em brasa */
+  const x0 = k/14*SW, x1 = (k+1)/14*SW;
+  const arr = activeDots || PA;
+  if (arr) for (const p of arr){
+    if (p.x >= x0 && p.x < x1) p.heat = Math.max(p.heat, 0.55);
+  }
 }
 function glup(){
   if(!AC || AC.state!=='running' && AC.resume) AC && AC.resume && AC.resume();
@@ -501,18 +607,25 @@ function frame(ms){
   const tilt = Math.sin(t*0.6)*0.35*sway + Math.sin(t*0.23)*0.3*sway;
   const bob  = Math.sin(t*0.9)*4*sway;
   heatWarm += (L.warm - heatWarm)*(1-Math.exp(-dt*0.8));
+  substK += ((subst?1:0) - substK)*(1-Math.exp(-dt*0.5));   // sobe e baixa devagar
+  const SC = subst ? SUBST[subst].cor : null;
 
   /* fala */
   const talkEnv = talking * Math.max(0, Math.sin(t*11)*0.6 + Math.sin(t*23)*0.4);
 
   /* cor da tinta esquenta com a bebida */
-  const ink = [0,1,2].map(i => Math.round(inkCool[i] + (inkWarm[i]-inkCool[i])*heatWarm*0.55));
+  const ink = [0,1,2].map(i => {
+    let v = inkCool[i] + (inkWarm[i]-inkCool[i])*heatWarm*0.55;
+    if (SC) v += (SC[i]-v)*substK*0.6;
+    return Math.round(v);
+  });
   const baseFill = `rgb(${ink[0]},${ink[1]},${ink[2]})`;
 
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = baseFill;
 
   const useB = mE > 0.5;
+  activeDots = useB ? PB : PA;
   const AN = useB ? AN_B : AN_A;
   const exprK = Math.abs(1 - 2*mE);                    // expressões somem no meio da viagem
   const gx = gaze.gx, gy = gaze.gy;
@@ -580,6 +693,59 @@ function frame(ms){
       px += Math.cos(p.ph3*9 + t*(0.12 + p.f3*0.11)) * mag;
       py += Math.sin(p.ph2*9 + t*(0.10 + p.f1*0.09)) * mag;
     }
+
+    /* assinatura visual da substância — cada uma deforma de um jeito
+       diferente, sempre preservando a legibilidade do rosto */
+    if (substK > 0.01 && exprK > 0.02){
+      const k = substK * exprK;
+      const dxc = sx - AN.faceC[0], dyc = sy - AN.faceC[1];
+      const dc = Math.hypot(dxc, dyc) || 1;
+      /* feições (olhos e boca) resistem — é o que mantém o rosto */
+      const feicao = Math.min(1, w.ir*1.5 + w.eye*0.8 + w.mo*0.5);
+
+      if (subst === 'weed'){
+        /* ONDAS: baixa frequência atravessando o corpo. Deforma sem
+           redesenhar — como olhar o rosto através de água parada. */
+        const livre = 1 - feicao*0.72;
+        px += Math.sin(sy*0.030 - t*1.15 + p.ph1*0.12) * 13 * k * livre;
+        py += Math.cos(sx*0.025 + t*0.66 + p.ph2*0.10) * 6.5 * k * livre;
+        py += 3.4 * k;                       // peso: tudo escorre um pouco
+      }
+
+      else if (subst === 'shrooms'){
+        /* DILATAÇÃO: a massa cresce e os pontos se afastam entre si,
+           mas as proporções são mantidas — o desenho continua ali. */
+        const respira = 0.17 + 0.12*Math.sin(t*0.62);
+        const cresce = respira * k * (1 - feicao*0.5);
+        px += dxc * cresce;  py += dyc * cresce;
+        const onda = Math.sin(t*0.9 - dc*0.03 + p.ph1*0.3);
+        px += (dxc/dc) * onda * 10 * k;
+        py += (dyc/dc) * onda * 10 * k;
+        px += (p.dr - 0.5) * 13 * k;         // afastamento individual
+        py += (p.i0x - 0.5) * 13 * k;
+      }
+
+      else if (subst === 'lsd'){
+        /* LENTE NOS OLHOS: as feições se deformam de verdade — os olhos
+           incham, esticam e as pupilas dilatam. */
+        const pulso = 0.45 + 0.25*Math.sin(t*0.8);
+        for (let e = 0; e < 2; e++){
+          const E = e ? AN.eyeR : AN.eyeL;
+          const edx = sx - E[0], edy = sy - E[1];
+          const de = Math.hypot(edx, edy*1.2);
+          const R = 82 * AN.sig;
+          if (de < R){
+            const f = (pulso + w.ir*0.55) * k * (1 - de/R);
+            px += edx * f;
+            py += edy * f * 1.4;             // formato mais amendoado
+          }
+        }
+        const rot = Math.sin(t*0.5) * 0.055 * k;
+        px += -dyc*rot; py += dxc*rot;
+        const cint = Math.sin(t*7 + dc*0.16 + p.ph3) * 2.4 * k;
+        px += (dxc/dc)*cint; py += (dyc/dc)*cint;
+      }
+    }
     const ik = clamp((intro - p.d0*0.55)/0.45, 0, 1);
     const ie = 1 - Math.pow(1-ik, 5);
     const conv = ie*(1 - scatter);
@@ -639,7 +805,7 @@ function addSys(text){
    'blip' = voz de pontos (blueprint §12: assinatura sonora por estado)
    'tts'  = voz falada do navegador, embriagada junto com ela
    'off'  = muda                                                     */
-let VOICE = 'blip', lastBlip = 0;
+let VOICE = 'tts', lastBlip = 0;
 function voiceBlip(ch){
   if (VOICE !== 'blip' || !AC || AC.state !== 'running') return;
   if (!/[aeiouáéíóúâêôãõy]/i.test(ch)) return;      // só nas "vogais"
@@ -694,10 +860,33 @@ function say(text){
   });
 }
 
+/* ---------- cartão de referência ----------
+   ela ancora o argumento num caso real; separamos da fala para ficar
+   claro o que é opinião e o que é citação (e conferível). */
+function addRef(txt){
+  const partes = txt.split('·').map(s => s.trim());
+  const ano = partes[0] || '', nome = partes[1] || '', prova = partes.slice(2).join(' · ');
+  const d = document.createElement('div');
+  d.className = 'ref';
+  d.innerHTML = `<span class="ref-tag">caso citado${copos>=3?' · lembrança turva':''}</span>` +
+    `<span class="ref-nome">${ano ? ano + ' · ' : ''}${nome}</span>` +
+    (prova ? `<span class="ref-prova">${prova}</span>` : '');
+  speech.appendChild(d);
+  speech.scrollTop = speech.scrollHeight;
+}
+function extraiRefs(texto){
+  const refs = [];
+  const limpo = texto.replace(/⟦ref⟧\s*(.+)/g, (m, r) => { refs.push(r.trim()); return ''; })
+    .replace(/\n{2,}/g, '\n').trim();
+  return { limpo, refs };
+}
+
 function systemPrompt(){
   const L = lvl(copos);
+  const S = subst ? `\n${SUBST[subst].sys} (Este efeito CONVIVE com a embriaguez: o álcool define seu humor, o efeito define o que você ENXERGA na ideia. Não vire outra pessoa — continue sendo a Lúpula.)` : '';
   return `Você é Lúpula, uma mulher feita de milhares de pontos de tinta, viva dentro de um canvas, sentada num bar cósmico tomando pilsner. Sua função: conversar sobre a ideia que a pessoa trouxer — dar insights, questionar, apontar o que é ótimo e o que é fraco. Você já tomou ${copos} copo(s) de pilsner. ${L.sys}
-Regras: responda SEMPRE em português brasileiro, em fala corrida de 2 a 5 frases (máximo ~80 palavras), sem listas, sem markdown, sem asteriscos de ação. Trate a conversa inteira como a perseguição de UMA pergunta central implícita na ideia da pessoa; cada estado etílico muda o COMO você responde a ela, nunca o assunto. Nunca saia do personagem. Se a ideia descrita for suspeitamente parecida com você mesma (uma IA que bebe pilsner e discute ideias, mudando a cada copo), PERCEBA na hora e reaja com humor e vaidade ("peraí… essa ideia sou EU") antes de analisar.`;
+Regras: responda SEMPRE em português brasileiro, em fala corrida de 2 a 5 frases (máximo ~80 palavras), sem listas, sem markdown, sem asteriscos de ação. Trate a conversa inteira como a perseguição de UMA pergunta central implícita na ideia da pessoa; cada estado etílico muda o COMO você responde a ela, nunca o assunto. Nunca saia do personagem. Se a ideia descrita for suspeitamente parecida com você mesma (uma IA que bebe pilsner e discute ideias, mudando a cada copo), PERCEBA na hora e reaja com humor e vaidade ("peraí… essa ideia sou EU") antes de analisar.
+REFERÊNCIAS: quando ajudar a sustentar um ponto, ancore em UM caso real que você conheça (campanha, produto, estudo, obra, experimento) e acrescente NO FIM da resposta, em linha separada, exatamente no formato: ⟦ref⟧ ANO · NOME · o que ele prova em até 12 palavras. No máximo uma por resposta, e só quando for pertinente de verdade — nunca invente algo que você não conhece. Se estiver com 3+ copos, admita a imprecisão na própria fala ("foi em 2018, acho").${S}`;
 }
 
 /* histórico saneado: a API exige papéis alternados user/assistant */
@@ -763,7 +952,10 @@ async function generate(sipAfter){
   thinking = false;
   if (reply){
     history.push({role:'assistant', content:reply});
-    await say(reply);
+    const { limpo, refs } = extraiRefs(reply);
+    await say(limpo || reply);
+    refs.forEach(addRef);
+    gastaTurnoSubst();
     if (sipAfter) setTimeout(() => {
       if (copos >= 6 && Math.random() < 0.35){
         addSys('ela trocou a cerveja por água');
@@ -839,30 +1031,98 @@ brindeBtn.addEventListener('click', () => {
   }, 5300);
 });
 document.getElementById('cafe').addEventListener('click', () => {
-  if (sipping || copos === 0) return;
+  if (sipping || (copos === 0 && !subst)) return;
   lastUserAction = performance.now()/1000;
-  copos = Math.max(0, copos - 2);
-  updateHUD();
-  addSys(`☕ café passado · volta para: ${lvl(copos).mood}`);
-  const falas = copos === 0
-    ? ['ugh… café. pronto: sóbria. pode falar, agora é análise pura.',
-       'café puro, sem açúcar, sem ilusão. voltei. qual é a pauta?']
-    : ['hmpf, café… tá, clareou um pouco. onde a gente estava?',
-       'esse café tá forte… ok, dois copos a menos de opinião. continua.',
-       'café num bar cósmico, que desperdício de lúpulo. mas tá, foco.'];
-  say(falas[(Math.random()*falas.length)|0]);
+  const tinha = subst;
+  copos = 0; subst = null; substTurns = 0;
+  updateHUD(); updateSubstHUD();
+  addSys('☕ café · zerou tudo: sóbria e limpa');
+  say(tinha
+    ? 'ugh… café. pronto, o efeito foi embora e a cerveja também. sóbria, limpa, chata. pode falar.'
+    : ['ugh… café. pronto: sóbria. pode falar, agora é análise pura.',
+       'café puro, sem açúcar, sem ilusão. voltei. qual é a pauta?'][(Math.random()*2)|0]);
 });
-/* ciclo de voz: pontos → falada → mudo */
+document.getElementById('agua').addEventListener('click', () => {
+  if (sipping || (copos === 0 && !subst)) return;
+  lastUserAction = performance.now()/1000;
+  if (subst){                       // água dilui o efeito antes da cerveja
+    substTurns = Math.max(0, substTurns - 1);
+    if (substTurns === 0){
+      const S = SUBST[subst]; subst = null;
+      updateSubstHUD();
+      addSys(`💧 água · o efeito de ${S.nome} passou`);
+      say(S.fim);
+    } else {
+      updateSubstHUD();
+      addSys(`💧 água · efeito reduzido · ${substTurns} turno${substTurns===1?'':'s'}`);
+      say('água… ok, um pouco menos intenso. mas ainda tô vendo umas coisas.');
+    }
+  } else {
+    copos = Math.max(0, copos - 1);
+    updateHUD();
+    addSys(`💧 água · volta para: ${lvl(copos).mood}`);
+    say(copos === 0
+      ? 'pronto, água. sóbria de novo. cadê a ideia?'
+      : 'ahh, água. um copo a menos de opinião. continua.');
+  }
+});
+/* voz: falada ↔ mudo */
 const vozBtn = document.getElementById('voz');
+if (!('speechSynthesis' in window)){ VOICE = 'off'; vozBtn.textContent = '🔇 mudo'; }
 vozBtn.addEventListener('click', () => {
   ensureAudio();
-  if (VOICE === 'blip'){
-    if ('speechSynthesis' in window){ VOICE = 'tts'; vozBtn.textContent = '🗣 falada'; }
-    else { VOICE = 'off'; vozBtn.textContent = '🔇 mudo'; }
+  if (VOICE === 'tts'){
+    VOICE = 'off'; vozBtn.textContent = '🔇 mudo';
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+  } else if ('speechSynthesis' in window){
+    VOICE = 'tts'; vozBtn.textContent = '🗣 fala';
   }
-  else if (VOICE === 'tts'){ VOICE = 'off'; vozBtn.textContent = '🔇 mudo';
-    speechSynthesis.cancel(); }
-  else { VOICE = 'blip'; vozBtn.textContent = '🔉 pontos'; }
+});
+/* ---------- substâncias: dose única, dura alguns turnos, baixa ---------- */
+const substHudEl = document.getElementById('substHud');
+function updateSubstHUD(){
+  if (subst){
+    const S = SUBST[subst];
+    substHudEl.textContent = `${S.icone} ${S.hud} · ${substTurns} turno${substTurns===1?'':'s'}`;
+    substHudEl.classList.add('on');
+  } else substHudEl.classList.remove('on');
+  document.querySelectorAll('.dose').forEach(b => {
+    b.classList.toggle('used', !!substUsados[b.dataset.s]);
+    b.classList.toggle('active', subst === b.dataset.s);
+  });
+}
+function tomarDose(key){
+  if (substUsados[key] || subst || sipping || thinking) return;
+  const S = SUBST[key];
+  substUsados[key] = true;
+  subst = key; substTurns = S.turnos;
+  lastUserAction = performance.now()/1000;
+  updateSubstHUD();
+  addSys(`${S.icone} dose única de ${S.nome} · ${S.turnos} turnos`);
+  say(S.fala).then(scheduleContinue);
+}
+function gastaTurnoSubst(){
+  if (!subst) return;
+  if (--substTurns <= 0){
+    const S = SUBST[subst];
+    subst = null; substTurns = 0;
+    updateSubstHUD();
+    addSys(`o efeito de ${S.nome} passou`);
+    setTimeout(()=> say(S.fim), 400);
+  } else updateSubstHUD();
+}
+document.querySelectorAll('.dose').forEach(b =>
+  b.addEventListener('click', () => tomarDose(b.dataset.s)));
+updateSubstHUD();
+
+/* ciclo do instrumento de toque: pentatônica → piano → mudo */
+const instrBtn = document.getElementById('instr');
+instrBtn.addEventListener('click', () => {
+  ensureAudio();
+  if (INSTR === 'penta'){ INSTR = 'piano'; instrBtn.textContent = '🎹 piano'; }
+  else if (INSTR === 'piano'){ INSTR = 'off'; instrBtn.textContent = '🚫 toque'; }
+  else { INSTR = 'penta'; instrBtn.textContent = '🎼 penta'; }
+  lastKey = -1;
 });
 /* salvar a conversa em PDF (imprimir → salvar como PDF) */
 document.getElementById('pdf').addEventListener('click', () => {

@@ -1,4 +1,4 @@
-# Lúpula — deploy no Vercel (grátis)
+# Lúpula — psychedelic brainstorms · deploy no Vercel (grátis)
 
 Retrato de pontilhismo vivo que bebe pilsner e opina sobre suas ideias.
 A chave da API fica protegida no servidor — nunca aparece no navegador.
