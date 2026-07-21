@@ -133,7 +133,7 @@
     <button class="dose" data-s="lsd" type="button" title="LSD — dose única: geometria e recursão">🌀</button>
     <button id="agua" class="ico" type="button" title="água — tira um copo, ou reduz o efeito ativo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l-1.5 17.2a1 1 0 0 1-1 .8H8.5a1 1 0 0 1-1-.8Z"/><path d="M6.9 10h10.2" opacity=".55"/><path d="M7.4 13.6c1.6.9 2.6-.9 4.3 0s2.7-.9 4.3 0" opacity=".55"/></svg></button>
     <button id="cafe" class="ico" type="button" title="café — zera tudo: sóbria e limpa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 8.2h13.2v6.1a5 5 0 0 1-5 5H8.6a5 5 0 0 1-5-5Z"/><path d="M16.8 9.6h1.9a2.6 2.6 0 0 1 0 5.2h-1.9"/><path d="M2.4 21.6h15.6" opacity=".6"/><path d="M8 5.4c0-1 1-1.4 1-2.4M12.4 5.4c0-1 1-1.4 1-2.4" opacity=".7"/></svg></button>
-    <button id="voz" type="button" title="alternar: voz falada / mudo">🗣 fala</button>
+    <button id="voz" type="button" title="alternar: voz falada / mudo">🔇 mudo</button>
     <button id="instr" type="button" title="instrumento do toque: pentatônica / piano / mudo">🎼 penta</button>
     <button id="pdf" type="button" title="salvar a conversa em PDF">⎙ pdf</button>
   </div>
@@ -768,17 +768,6 @@ function frame(ms){
   }
   ctx.globalAlpha = 1;
 
-  /* fallback de silêncio longo: retoma o raciocínio ou bebe sozinha */
-  const now = t;
-  if (!sipping && !thinking && talking===0 && now - lastUserAction > 90){
-    lastUserAction = now;
-    if (PA && history.some(m => m.role === 'assistant')) continueThinking();
-    else {
-      say(lvl(Math.min(copos+1, LEVELS.length-1)).idle);
-      takeSip();
-      setTimeout(()=> addSys(`bebeu sozinha · agora: ${lvl(copos).mood}`), 5300);
-    }
-  }
   requestAnimationFrame(frame);
 }
 
@@ -805,7 +794,7 @@ function addSys(text){
    'blip' = voz de pontos (blueprint §12: assinatura sonora por estado)
    'tts'  = voz falada do navegador, embriagada junto com ela
    'off'  = muda                                                     */
-let VOICE = 'tts', lastBlip = 0;
+let VOICE = 'off', lastBlip = 0;
 function voiceBlip(ch){
   if (VOICE !== 'blip' || !AC || AC.state !== 'running') return;
   if (!/[aeiouáéíóúâêôãõy]/i.test(ch)) return;      // só nas "vogais"
@@ -936,8 +925,8 @@ async function callAPI(){
   throw new Error(erros.join(' · '));
 }
 
-/* pipeline de geração reutilizável: sipAfter = ela bebe depois de opinar */
-async function generate(sipAfter){
+/* pipeline de geração: ela responde no estado em que estiver */
+async function generate(){
   thinking = true;
   sendBtn.disabled = true;
   const dots = document.createElement('div');
@@ -956,18 +945,6 @@ async function generate(sipAfter){
     await say(limpo || reply);
     refs.forEach(addRef);
     gastaTurnoSubst();
-    if (sipAfter) setTimeout(() => {
-      if (copos >= 6 && Math.random() < 0.35){
-        addSys('ela trocou a cerveja por água');
-        say('…água agora. mas não terminei o raciocínio, hein.').then(scheduleContinue);
-        return;
-      }
-      takeSip();
-      setTimeout(()=> {
-        addSys(`*glup* · agora: ${lvl(copos).mood}`);
-        scheduleContinue();            // 5s de silêncio → ela continua sozinha
-      }, 5300);
-    }, 700);
   } else {
     history.pop();   // remove o turno pendente para não corromper a conversa
     addSys('falha: ' + (lastErr && lastErr.message ? lastErr.message : 'desconhecida'));
@@ -976,39 +953,29 @@ async function generate(sipAfter){
   sendBtn.disabled = false;
 }
 
+/* o gole acontece NA interação: você fala, ela bebe, depois responde */
+function goleDaVez(){
+  return new Promise(res => {
+    if (copos >= 6 && Math.random() < 0.35){
+      addSys('ela trocou a cerveja por água');
+      say('…água dessa vez. mas pode falar.').then(res);
+      return;
+    }
+    takeSip();
+    setTimeout(() => { addSys(`*glup* · agora: ${lvl(copos).mood}`); res(); }, 5300);
+  });
+}
+
 async function ask(text){
   addUser(text);
   history.push({role:'user', content:text});
-  autoRuns = 0; waitingNote = false;   // sua fala renova o fôlego dela
   if (history.length > 14) history.splice(0, history.length-14);
-  await generate(true);
-}
-
-/* silêncio: ela segue o raciocínio sozinha, gole após gole */
-let autoRuns = 0, waitingNote = false;
-const AUTO_PROMPT = '(A pessoa ficou em silêncio. Você tomou mais um gole. Continue respondendo a MESMA questão/ideia da conversa por conta própria: aprofunde um ponto, mude de ângulo ou teste o conceito — tudo sob seu estado atual de embriaguez. Não cumprimente, não peça resposta, não repita o que já disse.)';
-
-function scheduleContinue(){
-  setTimeout(() => {
-    if (performance.now()/1000 - lastUserAction < 5) return;   // você falou: ela ouve
-    if (thinking || sipping || talking !== 0) return;
-    continueThinking();
-  }, 5000);
-}
-function continueThinking(){
-  if (!history.some(m => m.role === 'assistant')) return;
-  if (autoRuns >= 4){
-    if (!waitingNote){
-      waitingNote = true;
-      addSys('ela espera você agora');
-      say('…já monologuei demais por uma rodada. sua vez: concorda ou discorda?');
-    }
-    return;
+  /* primeira mensagem: responde sóbria. das próximas em diante, bebe antes */
+  if (history.filter(m => m.role === 'assistant').length > 0){
+    sendBtn.disabled = true;
+    await goleDaVez();
   }
-  autoRuns++;
-  history.push({role:'user', hidden:true, content: AUTO_PROMPT});
-  if (history.length > 14) history.splice(0, history.length-14);
-  generate(true);
+  await generate();
 }
 
 function submit(){
@@ -1068,7 +1035,6 @@ document.getElementById('agua').addEventListener('click', () => {
 });
 /* voz: falada ↔ mudo */
 const vozBtn = document.getElementById('voz');
-if (!('speechSynthesis' in window)){ VOICE = 'off'; vozBtn.textContent = '🔇 mudo'; }
 vozBtn.addEventListener('click', () => {
   ensureAudio();
   if (VOICE === 'tts'){
@@ -1099,7 +1065,7 @@ function tomarDose(key){
   lastUserAction = performance.now()/1000;
   updateSubstHUD();
   addSys(`${S.icone} dose única de ${S.nome} · ${S.turnos} turnos`);
-  say(S.fala).then(scheduleContinue);
+  say(S.fala);
 }
 function gastaTurnoSubst(){
   if (!subst) return;
