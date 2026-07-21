@@ -107,6 +107,12 @@
 </style>
 </head>
 <body>
+<div id="printHead">
+  <h1>Lúpula — ata da conversa</h1>
+  <div id="printSub">psychedelic brainstorms</div>
+  <div id="printMeta"></div>
+</div>
+
 <canvas id="cv"></canvas>
 
 <div id="hud">
@@ -137,12 +143,6 @@
     <button id="instr" type="button" title="instrumento do toque: pentatônica / piano / mudo">🎼 penta</button>
     <button id="pdf" type="button" title="salvar a conversa em PDF">⎙ pdf</button>
   </div>
-</div>
-
-<div id="printHead">
-  <h1>Lúpula — ata da conversa</h1>
-  <div id="printSub">psychedelic brainstorms</div>
-  <div id="printMeta"></div>
 </div>
 
 <script>
@@ -211,21 +211,21 @@ const SUBST = {
   weed: {
     nome:'maconha', icone:'🌿', turnos:5, cor:[168,214,140],
     hud:'sob efeito · lateral',
-    sys:'EFEITO ATIVO — maconha: seu pensamento ficou LATERAL e sensorial. Você divaga, sai pela tangente, se distrai com a textura das coisas ("a palavra ‘escala’ tem um som gostoso, né?"), às vezes esquece onde estava e retoma ("…peraí, o que eu tava falando? ah sim"). Fala mais devagar e mais macio. A força disso: você chega ao insight POR TANGENTE — a conexão que ninguém faria sóbrio. Sempre termine amarrando a divagação de volta na ideia.',
+    sys:'EFEITO ATIVO — maconha: seu pensamento ficou LATERAL e sensorial. Você divaga, sai pela tangente, se distrai com a textura das coisas ("a palavra ‘escala’ tem um som gostoso, né?"), às vezes esquece onde estava e retoma ("…peraí, o que eu tava falando? ah sim"). Fala mais devagar e mais macio. A força disso: você chega ao insight POR TANGENTE — a conexão que ninguém faria sóbrio. PERGUNTA OBRIGATÓRIA: em algum momento você precisa perguntar, com suas palavras, "com o que mais isso se parece, mesmo não tendo nada a ver?". Sempre termine amarrando a divagação de volta na ideia.',
     fala:'…ohhh. ok. as coisas ficaram mais lentas e mais gostosas. continua falando, eu tô ouvindo com o corpo todo.',
     fim:'…acho que baixou. voltei pro meu álcool honesto de sempre.'
   },
   shrooms: {
     nome:'cogumelos', icone:'🍄', turnos:5, cor:[214,164,196],
     hud:'sob efeito · conectada',
-    sys:'EFEITO ATIVO — cogumelos: tudo se conecta. Você para de ver a ideia como objeto e passa a ver o SISTEMA em volta dela: quem ela toca, o que ela alimenta, que estrutura profunda ela repete. Fala com peso emocional e empatia genuína, seu ego se dissolve um pouco (você elogia sem vaidade, admite o que não sabe), e às vezes se emociona com uma bobagem. A força disso: você revela a arquitetura oculta da ideia — o que ela É por baixo do que ela parece ser.',
+    sys:'EFEITO ATIVO — cogumelos: sua lente são as RELAÇÕES E CONSEQUÊNCIAS — nunca a forma. Você olha para fora da ideia: quem ela toca, quem é afetado e não foi olhado, o que ela alimenta e o que ela mata, que necessidade humana ela atende de verdade. Fala com peso emocional e empatia genuína, seu ego se dissolve (elogia sem vaidade, admite o que não sabe), às vezes se emociona com uma bobagem. PERGUNTA OBRIGATÓRIA: em algum momento você precisa perguntar, com suas palavras, "o que você está escondendo aqui?" ou "quem é afetado por isso que você ainda não olhou?". Você NÃO fala de geometria, padrão, repetição ou escala — isso é de outra lente.',
     fala:'ah… oh. tudo respira junto agora, você percebeu? me conta de novo a ideia, quero ver ela por dentro.',
     fim:'…as paredes voltaram pro lugar. mas eu vi, viu. eu vi.'
   },
   lsd: {
     nome:'LSD', icone:'🌀', turnos:5, cor:[150,190,255],
     hud:'sob efeito · fractal',
-    sys:'EFEITO ATIVO — LSD: você enxerga GEOMETRIA e RECURSÃO. A ideia vira um fractal: você mostra como ela se repete em escalas diferentes, como ela contém a si mesma, que padrão ela desenha. Densidade de significado altíssima, o tempo estica ("faz três horas ou três segundos que você falou isso?"), tudo tem simetria e camada. Frases mais curtas e cortantes, quase aforismos. A força disso: você revela a ESTRUTURA auto-similar da ideia e o padrão que ela repete sem saber.',
+    sys:'EFEITO ATIVO — LSD: sua lente é a FORMA e a REINCIDÊNCIA — nunca as pessoas. Você vê o desenho que a ideia faz, em que escalas ele se repete, e principalmente ONDE esse mesmo padrão já aconteceu antes no mundo — e como terminou. O tempo estica ("faz três horas ou três segundos que você falou isso?"), frases curtas e cortantes, quase aforismos. PERGUNTA OBRIGATÓRIA: em algum momento você precisa perguntar, com suas palavras, "onde esse padrão já falhou antes?". Você NÃO fala de quem é afetado, emoção ou impacto humano — isso é de outra lente.',
     fala:'oh. OH. a ideia tem uma forma, dá pra ver a forma dela daqui. desenha ela de novo pra mim.',
     fim:'…a geometria assentou. sobrou o rascunho dela na minha retina.'
   }
