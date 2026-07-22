@@ -483,6 +483,19 @@ def scrape_instagram(
 
 # ── X / Twitter (Apify actor — needs APIFY_API_TOKEN) ────────────────────────
 
+def _run_dataset_id(run) -> Optional[str]:
+    """Extract the default dataset id from an Apify actor run result.
+    apify-client returns a dict in some versions and a typed object in others —
+    support both so version upgrades never silently break retrieval.
+    """
+    if run is None:
+        return None
+    if isinstance(run, dict):
+        return run.get("defaultDatasetId") or run.get("default_dataset_id")
+    return (getattr(run, "default_dataset_id", None)
+            or getattr(run, "defaultDatasetId", None))
+
+
 def _parse_twitter_items(items: list, client_tag: Optional[str] = None) -> list["Signal"]:
     """Parse tweet items from any Apify Twitter actor into Signal objects.
     Handles field names from both danek/twitter-scraper and apidojo/tweet-scraper.
@@ -567,15 +580,22 @@ def scrape_twitter(
         ac = ApifyClient(api_token)
 
         # ── Primary: danek/twitter-scraper ────────────────────────────────
+        # Documented input: {"search": "<query>"} — searchTerms kept as alias.
         try:
             run = ac.actor("danek/twitter-scraper").call(run_input={
+                "search": topic,        # documented param for this actor
                 "searchTerms": [topic],
-                "maxItems": n,          # recognized param name
-                "max_posts": n,         # alias some versions use
+                "max_posts": n,
+                "maxItems": n,
             })
-            items_list = list(ac.dataset(run["defaultDatasetId"]).iterate_items())
+            _ds_id = _run_dataset_id(run)
+            if not _ds_id:
+                raise RuntimeError(f"No dataset id in run result (type={type(run).__name__})")
+            items_list = list(ac.dataset(_ds_id).iterate_items())
             if callback:
-                callback(f"[X/Twitter] danek actor → {len(items_list)} items")
+                callback(f"[X/Twitter] danek actor → {len(items_list)} raw items")
+            if items_list and callback:
+                callback(f"[X/Twitter] Sample keys: {list(items_list[0].keys())[:12]}")
             signals = _parse_twitter_items(items_list, client_tag)
         except Exception as _primary_err:
             if callback:
@@ -592,9 +612,12 @@ def scrape_twitter(
                     "maxTweets": n,
                     "queryType": "Latest",
                 })
-                items2 = list(ac.dataset(run2["defaultDatasetId"]).iterate_items())
+                _ds_id2 = _run_dataset_id(run2)
+                if not _ds_id2:
+                    raise RuntimeError("No dataset id in fallback run result")
+                items2 = list(ac.dataset(_ds_id2).iterate_items())
                 if callback:
-                    callback(f"[X/Twitter] apidojo actor → {len(items2)} items")
+                    callback(f"[X/Twitter] apidojo actor → {len(items2)} raw items")
                 signals = _parse_twitter_items(items2, client_tag)
             except Exception as _fallback_err:
                 if callback:

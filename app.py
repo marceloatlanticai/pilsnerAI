@@ -3830,40 +3830,37 @@ if _fd_run and _fd_query.strip():
             pass
 
     _fd_status.empty()
-    st.session_state["fd_results"] = _fd_raw
-    st.session_state["fd_query_used"] = _fd_query
-    st.session_state["fd_synopsis"] = _fd_synopsis
+    # ── Append to search history (newest first, keep last 10) ─────────────
+    _fd_hist = st.session_state.get("fd_history", [])
+    _fd_hist.insert(0, {
+        "query": _fd_query,
+        "results": _fd_raw,
+        "synopsis": _fd_synopsis,
+        "ts": datetime.now().strftime("%H:%M"),
+    })
+    st.session_state["fd_history"] = _fd_hist[:10]
     st.rerun()
 
 elif _fd_run and not _fd_query.strip():
     st.warning("Enter a search query first.")
 
-# ── Feed: display results ────────────────────────────────────────────────────
-_fd_stored = st.session_state.get("fd_results", [])
-_fd_q_stored = st.session_state.get("fd_query_used", "")
-_fd_syn_stored = st.session_state.get("fd_synopsis", "")
+# ── Feed: display search history (newest first) ─────────────────────────────
+_fd_history = st.session_state.get("fd_history", [])
+_fd_src_labels = {"reddit":"Reddit","rss":"RSS","gdelt":"GDELT","hacker_news":"HN",
+                  "youtube":"YouTube","tiktok":"TikTok","instagram":"Instagram",
+                  "twitter":"X/Twitter","web":"Web"}
 
-if _fd_stored:
-    st.caption(f"**{len(_fd_stored)} signals** · query: *{_fd_q_stored}*")
 
-    if _fd_syn_stored:
-        st.markdown(
-            f'<div class="fd-synopsis"><b>Synopsis</b>{e(_fd_syn_stored)}</div>',
-            unsafe_allow_html=True,
-        )
-
+def _fd_render_results(_fd_stored: list, _fd_hi: int) -> None:
+    """Render one search's result grid. _fd_hi = history index (for unique keys)."""
     # ── Source filter ─────────────────────────────────────────────────────
     _fd_src_present = sorted({r.get("source","?") for r in _fd_stored})
-    _fd_src_labels = {"reddit":"Reddit","rss":"RSS","gdelt":"GDELT","hacker_news":"HN",
-                      "youtube":"YouTube","tiktok":"TikTok","instagram":"Instagram",
-                      "twitter":"X/Twitter","web":"Web"}
     _fd_filter_opts = ["All"] + [_fd_src_labels.get(s, s.title()) for s in _fd_src_present]
     _fd_filter = st.radio("Filter by source", _fd_filter_opts, horizontal=True,
-                          label_visibility="collapsed", key="fd_filter")
+                          label_visibility="collapsed", key=f"fd_filter_{_fd_hi}")
     _fd_filter_key = {v: k for k, v in _fd_src_labels.items()}.get(_fd_filter, "")
-    _fd_show = _fd_stored if _fd_filter == "All" else [r for r in _fd_stored if r.get("source") == _fd_filter_key]
-
-    st.markdown("---")
+    _fd_show = (_fd_stored if _fd_filter == "All"
+                else [r for r in _fd_stored if r.get("source") == _fd_filter_key])
 
     # ── 3-column card grid ────────────────────────────────────────────────
     _fd_cols_per_row = 3
@@ -3880,7 +3877,8 @@ if _fd_stored:
                 _fd_thumb = _fd_r.get("thumbnail", "") or ""
                 _fd_src_lbl = _fd_src_labels.get(_fd_src, _fd_src.title())
 
-                # Thumbnail
+                # Thumbnail — plain img over gradient (Streamlit strips JS
+                # handlers from st.markdown; unreliable sources return "")
                 if _fd_thumb:
                     _fd_prx = _tr_proxy_thumb(_fd_thumb)
                     _fd_is_social = _fd_src in ("instagram", "tiktok")
@@ -3889,11 +3887,9 @@ if _fd_stored:
                     _fd_thumb_html = (
                         f'<div class="fd-thumb-wrap" style="background:{_fd_grad};">'
                         f'<div class="fd-thumb-icon">✦</div>'
-                        f'<img src="{_fd_prx}" loading="lazy" '
+                        f'<img src="{_fd_prx}" loading="lazy" alt="" '
                         f'style="position:absolute;inset:0;width:100%;height:100%;'
-                        f'object-fit:cover;opacity:0;transition:opacity .4s;" '
-                        f'onload="this.style.opacity=1" '
-                        f'onerror="this.style.display=\'none\'"/>'
+                        f'object-fit:cover;"/>'
                         f'</div>'
                     )
                 else:
@@ -3916,7 +3912,7 @@ if _fd_stored:
                         st.markdown(f'<a href="{_fd_url}" target="_blank" style="font-size:11px;color:#0fa3b5;">Open ↗</a>',
                                     unsafe_allow_html=True)
                 with _fd_btn_cols[1]:
-                    if st.button("+ Save", key=f"fd_save_{_fd_row_start}_{_fd_ci}",
+                    if st.button("+ Save", key=f"fd_save_{_fd_hi}_{_fd_row_start}_{_fd_ci}",
                                  use_container_width=True):
                         _fd_u = st.session_state.get("logged_in_user", "internal")
                         add_curadoria_item(
@@ -3924,6 +3920,38 @@ if _fd_stored:
                             _fd_r.get("content", "")[:1000],
                         )
                         st.success("Saved!")
+
+
+if _fd_history:
+    # ── History header + clear button ─────────────────────────────────────
+    _fd_hdr_col, _fd_clr_col = st.columns([5, 1])
+    with _fd_hdr_col:
+        st.caption(f"**{len(_fd_history)}** search{'es' if len(_fd_history) > 1 else ''} this session — newest first")
+    with _fd_clr_col:
+        if st.button("Clear all", key="fd_clear_history", use_container_width=True):
+            st.session_state["fd_history"] = []
+            st.rerun()
+
+    for _fd_hi, _fd_entry in enumerate(_fd_history):
+        _fd_q   = _fd_entry.get("query", "")
+        _fd_res = _fd_entry.get("results", [])
+        _fd_syn = _fd_entry.get("synopsis", "")
+        _fd_t   = _fd_entry.get("ts", "")
+
+        # Latest search: expanded; older ones: collapsed expanders
+        with st.expander(
+            f"🔎 {_fd_q} · {len(_fd_res)} signals · {_fd_t}",
+            expanded=(_fd_hi == 0),
+        ):
+            if _fd_syn:
+                st.markdown(
+                    f'<div class="fd-synopsis"><b>Synopsis</b>{e(_fd_syn)}</div>',
+                    unsafe_allow_html=True,
+                )
+            if _fd_res:
+                _fd_render_results(_fd_res, _fd_hi)
+            else:
+                st.caption("No signals found for this search.")
 
 else:
     st.markdown("""
@@ -5333,7 +5361,8 @@ if _ev_results_stored:
         _vrd_cls  = _ev_verdict_class.get(_verdict, "ev-complicates")
         _vrd_lbl  = f"{_ev_verdict_emoji.get(_verdict,'')} {_verdict.capitalize()}"
         _domain   = urllib.parse.urlparse(_url).netloc if _url else _src
-        # Thumbnail — start invisible, fade in only on successful load, stay hidden on error
+        # Thumbnail — plain img over gradient (Streamlit strips JS handlers,
+        # so no onload/onerror tricks; unreliable sources return "" upstream)
         _raw_thumb = _ev_r.get("thumbnail", "") or ""
         _thumb_html = ""
         if _raw_thumb:
@@ -5344,15 +5373,11 @@ if _ev_results_stored:
             _thumb_html = (
                 f'<div style="margin-bottom:10px;border-radius:8px;overflow:hidden;'
                 f'height:140px;background:{_grad};position:relative;">'
-                # Fallback star shown when image fails (same aesthetic as Research Lab cards)
                 f'<div style="position:absolute;inset:0;display:flex;align-items:center;'
                 f'justify-content:center;color:rgba(255,255,255,.3);font-size:28px;">✦</div>'
-                # Image: invisible until loaded, hides itself on error
-                f'<img src="{_prx}" loading="lazy" '
+                f'<img src="{_prx}" loading="lazy" alt="" '
                 f'style="position:absolute;inset:0;width:100%;height:100%;'
-                f'object-fit:cover;opacity:0;transition:opacity .4s;" '
-                f'onload="this.style.opacity=1" '
-                f'onerror="this.style.display=\'none\'"/>'
+                f'object-fit:cover;"/>'
                 f'</div>'
             )
 
@@ -6314,11 +6339,10 @@ def _tr_render_card(card: dict, col_key: str, idx: int):
     _ph_cls = {"tiktok": "tr-ph-tiktok", "instagram": "tr-ph-instagram"}.get(_card_source, "")
 
     if thumb_src:
-        # Overlay img on top of placeholder bg; if img fails, hide it (gradient shows)
+        # Plain img over branded placeholder bg (Streamlit strips JS handlers)
         thumb_html = (
             f'<div class="tr-thumb-wrap {_ph_cls}">'
-            f'<img src="{thumb_src}" style="opacity:0;transition:opacity .4s;" '
-            f'onload="this.style.opacity=1" onerror="this.style.display=\'none\'" />'
+            f'<img src="{thumb_src}" loading="lazy" alt="" />'
             f'</div>'
         )
     elif _ph_cls:
@@ -6485,8 +6509,7 @@ if _hn_board_data:
         if thumb_src:
             thumb_html = (
                 f'<div class="tr-thumb-wrap {_hn_ph_cls}" style="height:100px;">'
-                f'<img src="{thumb_src}" style="opacity:0;transition:opacity .4s;" '
-                f'onload="this.style.opacity=1" onerror="this.style.display=\'none\'" />'
+                f'<img src="{thumb_src}" loading="lazy" alt="" />'
                 f'</div>'
             )
         elif _hn_ph_cls:
