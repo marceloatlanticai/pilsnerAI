@@ -580,13 +580,14 @@ def scrape_twitter(
         ac = ApifyClient(api_token)
 
         # ── Primary: danek/twitter-scraper ────────────────────────────────
-        # Documented input: {"search": "<query>"} — searchTerms kept as alias.
+        # Verified input schema (build 1.4.28): the search field is "query"
+        # (a string), the sort is "search_type", and "max_posts" is required.
+        # (searchTerms / search / maxItems are silently ignored by this actor.)
         try:
             run = ac.actor("danek/twitter-scraper").call(run_input={
-                "search": topic,        # documented param for this actor
-                "searchTerms": [topic],
+                "query": topic,
+                "search_type": "Top",   # Top | Latest | Media | People | Lists
                 "max_posts": n,
-                "maxItems": n,
             })
             _ds_id = _run_dataset_id(run)
             if not _ds_id:
